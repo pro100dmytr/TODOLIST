@@ -41,25 +41,46 @@ func (s *Storage) CreateTodoItem(todo model.Todo) (int, error) {
 	return id, err
 }
 
-func (s *Storage) DeleteTodoItem(id int) (sql.Result, error) {
+func (s *Storage) DeleteTodoItem(id int) error {
 	const query = "DELETE FROM tasks WHERE task_id = $1"
-	result, err := s.db.Exec(query, id)
-	return result, err
+	_, err := s.db.Exec(query, id)
+	return err
 }
 
-func (s *Storage) DeleteAllTodoItem() (sql.Result, error) {
+func (s *Storage) DeleteAllTodoItem() error {
 	const query = "DELETE FROM tasks"
-	result, err := s.db.Exec(query)
-	return result, err
+	_, err := s.db.Exec(query)
+	return err
 }
 
-func (s *Storage) GetTodoItem() (*sql.Rows, error) {
+func (s *Storage) GetAllItems() ([]model.Todo, error) {
 	rows, err := s.db.Query("SELECT task_id, title, completed FROM tasks")
-	return rows, err
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	tasks := make([]model.Todo, 0)
+
+	for rows.Next() {
+		var task model.Todo
+
+		if err = rows.Scan(&task.ID, &task.Title, &task.Completed); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return tasks, err
 }
 
-func (s *Storage) UpdateTodoItem(todo model.Todo, id int) (sql.Result, error) {
+func (s *Storage) UpdateTodoItem(todo model.Todo, id int) error {
 	const query = "UPDATE tasks SET title = $1, completed = $2 WHERE task_id = $3"
-	result, err := s.db.Exec(query, todo.Title, todo.Completed, id)
-	return result, err
+	_, err := s.db.Exec(query, todo.Title, todo.Completed, id)
+	return err
 }
