@@ -7,7 +7,7 @@ import (
 	"TODO_List/internal/http-server/handlers/deleteOne"
 	"TODO_List/internal/http-server/handlers/get"
 	"TODO_List/internal/http-server/handlers/update"
-	"TODO_List/internal/storage/postgresql"
+	storage "TODO_List/internal/storage/postgresql"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -21,9 +21,9 @@ func main() {
 		log.Fatal("Failed to load config:", err)
 	}
 
-	store, err := postgresql.New(cfg)
+	store, err := storage.New(cfg)
 	if err != nil {
-		log.Fatal("failed to database connect", err) // TODO: write message
+		log.Fatal("failed to database connect", err)
 	}
 
 	e := echo.New()

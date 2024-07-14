@@ -2,7 +2,7 @@ package config
 
 import (
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"os"
 	"time"
 )
 
@@ -27,14 +27,13 @@ type Config struct {
 }
 
 func LoadConfig(configPath string) (*Config, error) {
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
 
 	var cfg Config
-	err = yaml.Unmarshal(data, &cfg)
-	if err != nil {
+	if err = yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 
