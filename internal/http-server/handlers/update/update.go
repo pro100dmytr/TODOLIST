@@ -1,6 +1,7 @@
 package update
 
 import (
+	"TODO_List/internal/http-server/handlers/create"
 	"TODO_List/internal/storage/postgresql"
 	"TODO_List/model"
 	"github.com/labstack/echo/v4"
@@ -8,26 +9,25 @@ import (
 	"strconv"
 )
 
-func UpdateTodo(c echo.Context) error {
+func UpdateTodo(c echo.Context, store *postgresql.Storage) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Невірний ID"})
+		return c.JSON(http.StatusBadRequest, create.ErrorResponse{Error: "Invalid ID"})
 	}
 
-	todo := new(model.Todo)
+	var todo model.Todo
 	if err := c.Bind(todo); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Помилка при обробці запиту"})
+		return c.JSON(http.StatusBadRequest, create.ErrorResponse{Error: "Error while processing a request"})
 	}
 
-	query := "UPDATE tasks SET title = $1, completed = $2 WHERE task_id = $3"
-	result, err := postgresql.Db.Exec(query, todo.Title, todo.Completed, id)
+	result, err := store.UpdateTodoItem(todo, id)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Помилка при оновленні завдання"})
+		return c.JSON(http.StatusInternalServerError, create.ErrorResponse{Error: "Error updating a task"})
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Помилка при отриманні кількості змінених рядків"})
+		return c.JSON(http.StatusInternalServerError, create.ErrorResponse{Error: "Error getting the number of changed rows"})
 	}
 
 	if rowsAffected == 0 {

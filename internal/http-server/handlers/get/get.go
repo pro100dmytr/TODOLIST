@@ -1,6 +1,7 @@
 package get
 
 import (
+	"TODO_List/internal/http-server/handlers/create"
 	"TODO_List/internal/storage/postgresql"
 	"TODO_List/model"
 
@@ -8,25 +9,26 @@ import (
 	"net/http"
 )
 
-func GetTodos(c echo.Context) error {
-	rows, err := postgresql.Db.Query("SELECT task_id, title, completed FROM tasks")
+func GetTodos(c echo.Context, store *postgresql.Storage) error {
+	rows, err := store.GetTodoItem()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Помилка при отриманні завдань"})
+		return c.JSON(http.StatusInternalServerError, create.ErrorResponse{Error: "Помилка при отриманні завдань"})
 	}
 	defer rows.Close()
 
 	tasks := make([]model.Todo, 0)
+
 	for rows.Next() {
 		var task model.Todo
 		err := rows.Scan(&task.ID, &task.Title, &task.Completed)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Помилка при скануванні рядків"})
+			return c.JSON(http.StatusInternalServerError, create.ErrorResponse{Error: "Помилка при скануванні рядків"})
 		}
 		tasks = append(tasks, task)
 	}
 
 	if err := rows.Err(); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Помилка при ітерації по результатам запиту"})
+		return c.JSON(http.StatusInternalServerError, create.ErrorResponse{Error: "Помилка при ітерації по результатам запиту"})
 	}
 
 	return c.JSON(http.StatusOK, tasks)

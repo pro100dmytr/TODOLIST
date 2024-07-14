@@ -1,0 +1,7 @@
+database:
+  host: localhost
+  port: 4050
+  user: myuser
+  password: 4050
+  dbname: todolistdb
+  sslmode: disable

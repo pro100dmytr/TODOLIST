@@ -7,17 +7,20 @@ import (
 	"net/http"
 )
 
-func CreateTodo(c echo.Context) error {
-	todo := new(model.Todo)
+type ErrorResponse struct {
+	Error string
+}
+
+func CreateTodo(c echo.Context, store *postgresql.Storage) error {
+	var todo model.Todo
 	if err := c.Bind(todo); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Помилка при обробці запиту"})
+		return c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Error while processing a request"})
 	}
 
-	query := "INSERT INTO tasks (title, completed) VALUES ($1, $2) RETURNING task_id"
-	var id int
-	err := postgresql.Db.QueryRow(query, todo.Title, todo.Completed).Scan(&id)
+	id, err := store.CreateTodoItem(todo)
+
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Помилка при додаванні завдання в базу даних"})
+		return c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Error adding a task to the database"})
 	}
 
 	todo.ID = id
