@@ -47,7 +47,7 @@ func main() {
 
 	e.DELETE("/categories/:id", server.DeleteCategory)
 
-	server2 := &http.Server{
+	connServer := &http.Server{
 		Addr:         cfg.HTTPServer.Address,
 		Handler:      e,
 		ReadTimeout:  cfg.HTTPServer.Timeout,
@@ -55,7 +55,7 @@ func main() {
 		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
 	}
 
-	if err = server2.ListenAndServe(); err != nil {
+	if err = connServer.ListenAndServe(); err != nil {
 		log.Fatal("Error starting server:", err)
 	}
 }
