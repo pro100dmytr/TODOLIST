@@ -170,14 +170,12 @@ func (s *Storage) GetAllCategories() ([]model.Category, error) {
 func (s *Storage) GetCategoryByID(id int) (model.Category, error) {
 	var category model.Category
 
-	// Отримання категорії
 	err := s.db.QueryRow("SELECT id, category FROM categories WHERE id = $1", id).
 		Scan(&category.ID, &category.Category)
 	if err != nil {
 		return category, err
 	}
 
-	// Отримання завдань, пов'язаних із категорією
 	rows, err := s.db.Query("SELECT task_id, title, completed, category_id FROM tasks WHERE category_id = $1", id)
 	if err != nil {
 		return category, err
