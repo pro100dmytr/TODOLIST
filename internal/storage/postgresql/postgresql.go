@@ -2,7 +2,7 @@ package postgresql
 
 import (
 	"TODO_List/internal/config"
-	"TODO_List/model"
+	model "TODO_List/internal/model"
 	"database/sql"
 	"fmt"
 )
@@ -85,11 +85,9 @@ func (s *Storage) UpdateTodoItem(todo model.Todo, id int) error {
 	return err
 }
 
-func (s *Storage) CreateCategory(category model.Category) (int, error) {
+func (s *Storage) CreateCategory(category model.Category) (id2 int, err error) {
 	const query = "INSERT INTO categories (category) VALUES ($1) RETURNING id"
-	var id int
-	err := s.db.QueryRow(query, category.Category).Scan(&id)
-	return id, err
+	return id2, s.db.QueryRow(query, category.Category).Scan(&id2)
 }
 
 func (s *Storage) UpdateCategory(category model.Category) error {
@@ -117,11 +115,7 @@ func (s *Storage) UpdateCategory(category model.Category) error {
 		return err
 	}
 
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (s *Storage) DeleteCategory(id int) error {
@@ -141,11 +135,7 @@ func (s *Storage) DeleteCategory(id int) error {
 		return err
 	}
 
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (s *Storage) GetAllCategories() ([]model.Category, error) {
@@ -159,7 +149,7 @@ func (s *Storage) GetAllCategories() ([]model.Category, error) {
 	var categories []model.Category
 	for rows.Next() {
 		var c model.Category
-		if err := rows.Scan(&c.ID, &c.Category); err != nil {
+		if err = rows.Scan(&c.ID, &c.Category); err != nil {
 			return nil, err
 		}
 		categories = append(categories, c)
