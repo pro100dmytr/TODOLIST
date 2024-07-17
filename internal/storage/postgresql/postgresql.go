@@ -5,6 +5,7 @@ import (
 	model "TODO_List/internal/model"
 	"database/sql"
 	"fmt"
+	"github.com/pressly/goose/v3"
 )
 
 type Storage struct {
@@ -28,6 +29,12 @@ func New(cfg *config.Config) (*Storage, error) {
 	}
 
 	if err = db.Ping(); err != nil {
+		return nil, err
+	}
+
+	//migration
+	err = goose.Up(db, "db\\migrations")
+	if err != nil {
 		return nil, err
 	}
 
