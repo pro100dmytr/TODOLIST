@@ -35,9 +35,9 @@ func New(cfg *config.Config) (*Storage, error) {
 }
 
 func (s *Storage) CreateTodoItem(todo model.Todo) (int, error) {
-	const query = "INSERT INTO tasks (title, completed) VALUES ($1, $2) RETURNING task_id"
+	const query = "INSERT INTO tasks (title, completed, category_id) VALUES ($1, $2, $3) RETURNING task_id"
 	var id int
-	err := s.db.QueryRow(query, todo.Title, todo.Completed).Scan(&id)
+	err := s.db.QueryRow(query, todo.Title, todo.Completed, todo.CategoryID).Scan(&id)
 	return id, err
 }
 
@@ -54,7 +54,7 @@ func (s *Storage) DeleteAllTodoItem() error {
 }
 
 func (s *Storage) GetAllItems() ([]model.Todo, error) {
-	rows, err := s.db.Query("SELECT task_id, title, completed FROM tasks")
+	rows, err := s.db.Query("SELECT task_id, title, completed, category_id FROM tasks")
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s *Storage) GetAllItems() ([]model.Todo, error) {
 	for rows.Next() {
 		var task model.Todo
 
-		if err = rows.Scan(&task.ID, &task.Title, &task.Completed); err != nil {
+		if err = rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, task)
@@ -80,7 +80,120 @@ func (s *Storage) GetAllItems() ([]model.Todo, error) {
 }
 
 func (s *Storage) UpdateTodoItem(todo model.Todo, id int) error {
-	const query = "UPDATE tasks SET title = $1, completed = $2 WHERE task_id = $3"
-	_, err := s.db.Exec(query, todo.Title, todo.Completed, id)
+	const query = "UPDATE tasks SET title = $1, completed = $2, category_id = $3 WHERE task_id = $4"
+	_, err := s.db.Exec(query, todo.Title, todo.Completed, todo.CategoryID, id)
 	return err
+}
+
+func (s *Storage) CreateCategory(category model.Category) (int, error) {
+	const query = "INSERT INTO categories (category) VALUES ($1) RETURNING id"
+	var id int
+	err := s.db.QueryRow(query, category.Category).Scan(&id)
+	return id, err
+}
+
+func (s *Storage) UpdateCategory(category model.Category) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"UPDATE categories SET category = $1 WHERE id = $2",
+		category.Category,
+		category.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(
+		"UPDATE tasks SET category_id = $1 WHERE task_id = $2",
+		category.Category,
+		category.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Storage) DeleteCategory(id int) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("DELETE FROM tasks WHERE category_id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("DELETE FROM categories WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Storage) GetAllCategories() ([]model.Category, error) {
+	const query = "SELECT id, category FROM categories"
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []model.Category
+	for rows.Next() {
+		var c model.Category
+		if err := rows.Scan(&c.ID, &c.Category); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
+
+func (s *Storage) GetCategoryByID(id int) (model.Category, error) {
+	var category model.Category
+
+	// Отримання категорії
+	err := s.db.QueryRow("SELECT id, category FROM categories WHERE id = $1", id).
+		Scan(&category.ID, &category.Category)
+	if err != nil {
+		return category, err
+	}
+
+	// Отримання завдань, пов'язаних із категорією
+	rows, err := s.db.Query("SELECT task_id, title, completed, category_id FROM tasks WHERE category_id = $1", id)
+	if err != nil {
+		return category, err
+	}
+	defer rows.Close()
+
+	var tasks []model.Todo
+	for rows.Next() {
+		var task model.Todo
+		err = rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID)
+		if err != nil {
+			return category, err
+		}
+		tasks = append(tasks, task)
+	}
+
+	category.Tasks = tasks
+	return category, nil
 }

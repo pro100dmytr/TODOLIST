@@ -1,4 +1,4 @@
-package update
+package updatecategory
 
 import (
 	"TODO_List/internal/storage/postgresql"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func UpdateTodo(c echo.Context, store *postgresql.Storage) error {
+func UpdateCategory(c echo.Context, store *postgresql.Storage) error {
 	idStr := strings.TrimPrefix(c.Param("id"), ":")
 
 	id, err := strconv.Atoi(idStr)
@@ -17,15 +17,16 @@ func UpdateTodo(c echo.Context, store *postgresql.Storage) error {
 		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid ID"})
 	}
 
-	var todo model.Todo
-	if err = c.Bind(&todo); err != nil {
+	var category model.Category
+	if err = c.Bind(&category); err != nil {
 		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Error while processing a request"})
 	}
 
-	err = store.UpdateTodoItem(todo, id)
+	category.ID = id
+	err = store.UpdateCategory(category)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Error updating a task"})
+		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	return c.JSON(http.StatusOK, todo)
+	return c.JSON(http.StatusOK, category)
 }

@@ -9,8 +9,8 @@ import (
 
 func CreateTodo(c echo.Context, store *postgresql.Storage) error {
 	var todo model.Todo
-	if err := c.Bind(todo); err != nil {
-		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Error while processing a request"})
+	if err := c.Bind(&todo); err != nil {
+		return c.JSON(http.StatusBadRequest, err)
 	}
 
 	id, err := store.CreateTodoItem(todo)
