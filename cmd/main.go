@@ -25,7 +25,7 @@ func main() {
 
 	e := echo.New()
 
-	//TO DO list
+	//tasks
 	e.GET("/todos", server.GetTodos)
 
 	e.POST("/todos", server.CreateTodo)

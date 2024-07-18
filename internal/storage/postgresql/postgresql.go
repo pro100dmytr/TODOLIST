@@ -2,7 +2,7 @@ package postgresql
 
 import (
 	"TODO_List/internal/config"
-	model "TODO_List/internal/model"
+	"TODO_List/internal/model"
 	"database/sql"
 	"fmt"
 	"github.com/pressly/goose/v3"
