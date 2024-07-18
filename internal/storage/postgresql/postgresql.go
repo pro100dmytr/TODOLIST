@@ -68,15 +68,11 @@ func (s *Storage) GetAllItems() ([]model.Todo, error) {
 
 	defer rows.Close()
 
-	tasks := make([]model.Todo, 0)
-
-	for rows.Next() {
-		var task model.Todo
-
-		if err = rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID); err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, task)
+	tasks, err := scanToDo(rows, func(rows *sql.Rows, task *model.Todo) error {
+		return rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID)
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	if err = rows.Err(); err != nil {
@@ -153,14 +149,13 @@ func (s *Storage) GetAllCategories() ([]model.Category, error) {
 	}
 	defer rows.Close()
 
-	var categories []model.Category
-	for rows.Next() {
-		var c model.Category
-		if err = rows.Scan(&c.ID, &c.Category); err != nil {
-			return nil, err
-		}
-		categories = append(categories, c)
+	categories, err := scanToDo(rows, func(rows *sql.Rows, category *model.Category) error {
+		return rows.Scan(&category.ID, &category.Category)
+	})
+	if err != nil {
+		return nil, err
 	}
+
 	return categories, nil
 }
 
@@ -179,16 +174,28 @@ func (s *Storage) GetCategoryByID(id int) (model.Category, error) {
 	}
 	defer rows.Close()
 
-	var tasks []model.Todo
-	for rows.Next() {
-		var task model.Todo
-		err = rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID)
-		if err != nil {
-			return category, err
-		}
-		tasks = append(tasks, task)
+	tasks, err := scanToDo(rows, func(rows *sql.Rows, task *model.Todo) error {
+		return rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID)
+	})
+	if err != nil {
+		return category, err
 	}
 
 	category.Tasks = tasks
 	return category, nil
+}
+
+func scanToDo[T any](rows *sql.Rows, scanFunc func(*sql.Rows, *T) error) ([]T, error) {
+	items := make([]T, 0)
+	for rows.Next() {
+		var item T
+		if err := scanFunc(rows, &item); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
