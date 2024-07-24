@@ -1,0 +1,5 @@
+config/prod.yaml
+config/local.yaml
+/.database/
+.env
+
