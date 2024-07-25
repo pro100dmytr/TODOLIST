@@ -221,6 +221,8 @@ func (s *Storage) CreateUser(user model.User) (int, error) {
 	return id, err
 }
 
+var ErrUserNotFound = errors.New("user not found")
+
 func (s *Storage) GetUserByEmail(email string) (model.User, error) {
 	var user model.User
 
@@ -232,17 +234,8 @@ func (s *Storage) GetUserByEmail(email string) (model.User, error) {
 
 	err := s.db.QueryRow(query, email).Scan(&user.ID, &user.Email, &user.Password)
 	if errors.Is(err, sql.ErrNoRows) {
-		return user, err
+		return user, ErrUserNotFound
 	}
 
 	return user, err
-}
-
-func (s *Storage) GetUserIDByEmail(email string) (int, error) {
-	var id int
-	err := s.db.QueryRow("SELECT user_id FROM users WHERE email = $1", email).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, err
-	}
-	return id, err
 }

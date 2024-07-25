@@ -246,7 +246,7 @@ func (s *Server) Login(c echo.Context) error {
 
 	user, err := s.store.GetUserByEmail(req.Email)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, postgresql.ErrUserNotFound) {
 			return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid credentials"})
 		}
 		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to process login"})
