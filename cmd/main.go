@@ -26,31 +26,28 @@ func main() {
 
 	e := echo.New()
 
-	r := e.Group("/", middleware.JWTMiddleware)
-	{
-		r.GET("/todos", server.GetTodos)
+	authenticated := e.Group("/", middleware.JWTMiddleware)
 
-		r.POST("/todoss", server.CreateTodo)
+	authenticated.GET("/todos", server.GetTodos)
 
-		r.PUT("/todos/:id", server.UpdateTodo)
+	authenticated.POST("/todos", server.CreateTodo)
 
-		r.DELETE("/todos/:id", server.DeleteTodo)
+	authenticated.PUT("/todos/:id", server.UpdateTodo)
 
-		r.DELETE("/todos", server.DeleteAllTodos)
+	authenticated.DELETE("/todos/:id", server.DeleteTodo)
 
-		r.GET("/categories", server.GetAllCategories)
+	authenticated.DELETE("/todos", server.DeleteAllTodos)
 
-		r.GET("/categories/:id/todos", server.GetCategoryTodos)
+	authenticated.GET("/categories", server.GetAllCategories)
 
-		r.POST("/categories", server.CreateCategory)
+	authenticated.GET("/categories/:id/todos", server.GetCategoryTodos)
 
-		r.PUT("/categories/:id", server.UpdateCategory)
+	authenticated.POST("/categories", server.CreateCategory)
 
-		r.DELETE("/categories/:id", server.DeleteCategory)
+	authenticated.PUT("/categories/:id", server.UpdateCategory)
 
-	}
+	authenticated.DELETE("/categories/:id", server.DeleteCategory)
 
-	//authentication and authorization
 	e.POST("/register", server.Register)
 
 	e.POST("/login", server.Login)

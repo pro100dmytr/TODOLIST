@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"os"
@@ -36,7 +37,6 @@ func (s *Server) CreateTodo(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid request"})
 	}
 
-	// Извлечение user_id из токена
 	user, ok := c.Get("user").(jwt.MapClaims)
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid token"})
@@ -226,15 +226,15 @@ func (s *Server) Register(c echo.Context) error {
 
 	id, err := s.store.CreateUser(user)
 	if err != nil {
-		if err.Error() == "email already exists" {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
 			return c.JSON(http.StatusConflict, model.ErrorResponse{Error: "Email already registered"})
 		}
 		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to create user"})
 	}
 
-	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"message": "User created successfully",
-		"user_id": id,
+	return c.JSON(http.StatusCreated, model.UserCreatedResponse{
+		UserID: id,
 	})
 }
 
@@ -244,16 +244,11 @@ func (s *Server) Login(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid request"})
 	}
 
-	userID, err := s.store.GetUserIDByEmail(req.Email)
+	user, err := s.store.GetUserByEmail(req.Email)
 	if err != nil {
-		if err.Error() == "user not found" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid credentials"})
 		}
-		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to process login"})
-	}
-
-	user, err := s.store.GetUserByID(userID)
-	if err != nil {
 		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to process login"})
 	}
 
@@ -266,10 +261,11 @@ func (s *Server) Login(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Could not generate token"})
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
-		"token": "Bearer " + token,
+	return c.JSON(http.StatusOK, model.TokenCreatedResponse{
+		Token: "Bearer " + token,
 	})
 }
+
 func (s *Server) generateJWTToken(userID int) (string, error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)

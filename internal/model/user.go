@@ -19,3 +19,11 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token string `json:"token"`
 }
+
+type UserCreatedResponse struct {
+	UserID int `json:"user_id"`
+}
+
+type TokenCreatedResponse struct {
+	Token string `json:"token"`
+}

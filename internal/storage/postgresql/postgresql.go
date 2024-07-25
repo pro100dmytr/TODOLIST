@@ -4,6 +4,7 @@ import (
 	"TODO_List/internal/config"
 	"TODO_List/internal/model"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/pressly/goose/v3"
 )
@@ -220,24 +221,27 @@ func (s *Storage) CreateUser(user model.User) (int, error) {
 	return id, err
 }
 
-func (s *Storage) GetUserByID(id int) (model.User, error) {
+func (s *Storage) GetUserByEmail(email string) (model.User, error) {
 	var user model.User
-	err := s.db.QueryRow(`
-    SELECT user_id, email, password 
-    FROM users WHERE user_id = $1
-    `, id).Scan(&user.ID, &user.Email, &user.Password)
 
-	if err == sql.ErrNoRows {
+	query := `
+		SELECT user_id, email, password 
+		FROM users
+		WHERE email = $1
+	`
+
+	err := s.db.QueryRow(query, email).Scan(&user.ID, &user.Email, &user.Password)
+	if errors.Is(err, sql.ErrNoRows) {
 		return user, err
 	}
 
-	return user, nil
+	return user, err
 }
 
 func (s *Storage) GetUserIDByEmail(email string) (int, error) {
 	var id int
 	err := s.db.QueryRow("SELECT user_id FROM users WHERE email = $1", email).Scan(&id)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, err
 	}
 	return id, err
