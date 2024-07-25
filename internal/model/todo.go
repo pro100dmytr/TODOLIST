@@ -5,4 +5,5 @@ type Todo struct {
 	Title      string `json:"title"`
 	Completed  bool   `json:"completed"`
 	CategoryID *int   `json:"category_id,omitempty"`
+	UserID     int    `json:"user_id"`
 }

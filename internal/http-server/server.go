@@ -4,10 +4,15 @@ import (
 	"TODO_List/internal/model"
 	"TODO_List/internal/storage/postgresql"
 	"database/sql"
+	"errors"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Server struct {
@@ -28,11 +33,23 @@ func (s *Server) GetTodos(c echo.Context) error {
 func (s *Server) CreateTodo(c echo.Context) error {
 	var todo model.Todo
 	if err := c.Bind(&todo); err != nil {
-		return c.JSON(http.StatusBadRequest, err)
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid request"})
 	}
 
-	id, err := s.store.CreateTodoItem(todo)
+	// Извлечение user_id из токена
+	user, ok := c.Get("user").(jwt.MapClaims)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid token"})
+	}
 
+	userID, ok := user["user_id"].(float64)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid token"})
+	}
+
+	todo.UserID = int(userID) // Установка user_id
+
+	id, err := s.store.CreateTodoItem(todo)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Error adding a task to the database"})
 	}
@@ -87,22 +104,6 @@ func (s *Server) DeleteAllTodos(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Error when deleting all tasks"})
 	}
 	return c.NoContent(http.StatusNoContent)
-}
-
-func (s *Server) GetCategoryById(c echo.Context) error {
-	idStr := strings.TrimPrefix(c.Param("id"), ":")
-
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid ID"})
-	}
-
-	category, err := s.store.GetCategoryByID(id)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err)
-	}
-
-	return c.JSON(http.StatusOK, category)
 }
 
 func (s *Server) GetAllCategories(c echo.Context) error {
@@ -167,4 +168,126 @@ func (s *Server) DeleteCategory(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (s *Server) GetCategoryTodos(c echo.Context) error {
+	idStr := strings.TrimPrefix(c.Param("id"), ":")
+	categoryID, err := strconv.Atoi(idStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid ID"})
+	}
+
+	offset := 0
+	limit := 20
+
+	if c.QueryParam("offset") != "" {
+		offset, err = strconv.Atoi(c.QueryParam("offset"))
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid offset parameter"})
+		}
+	}
+
+	if c.QueryParam("limit") != "" {
+		limit, err = strconv.Atoi(c.QueryParam("limit"))
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid limit parameter"})
+		}
+	}
+
+	search := c.QueryParam("search")
+
+	todos, err := s.store.GetCategoryTodos(categoryID, offset, limit, search)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err)
+	}
+
+	return c.JSON(http.StatusOK, todos)
+}
+
+func (s *Server) Register(c echo.Context) error {
+	var req model.RegisterRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid request"})
+	}
+
+	if err := validateUserData(req.Email, req.Password); err != nil {
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: err.Error()})
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to hash password"})
+	}
+
+	user := model.User{
+		Email:    req.Email,
+		Password: string(hashedPassword),
+	}
+
+	id, err := s.store.CreateUser(user)
+	if err != nil {
+		if err.Error() == "email already exists" {
+			return c.JSON(http.StatusConflict, model.ErrorResponse{Error: "Email already registered"})
+		}
+		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to create user"})
+	}
+
+	return c.JSON(http.StatusCreated, map[string]interface{}{
+		"message": "User created successfully",
+		"user_id": id,
+	})
+}
+
+func (s *Server) Login(c echo.Context) error {
+	var req model.LoginRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, model.ErrorResponse{Error: "Invalid request"})
+	}
+
+	userID, err := s.store.GetUserIDByEmail(req.Email)
+	if err != nil {
+		if err.Error() == "user not found" {
+			return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid credentials"})
+		}
+		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to process login"})
+	}
+
+	user, err := s.store.GetUserByID(userID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Failed to process login"})
+	}
+
+	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid credentials"})
+	}
+
+	token, err := s.generateJWTToken(user.ID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, model.ErrorResponse{Error: "Could not generate token"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"token": "Bearer " + token,
+	})
+}
+func (s *Server) generateJWTToken(userID int) (string, error) {
+	token := jwt.New(jwt.SigningMethodHS256)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["user_id"] = userID
+	claims["exp"] = time.Now().Add(time.Hour * 12).Unix()
+
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+}
+
+func validateUserData(email, password string) error {
+	if email == "" {
+		return errors.New("email is required")
+	}
+	if !strings.Contains(email, "@") {
+		return errors.New("invalid email format")
+	}
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters long")
+	}
+	return nil
 }

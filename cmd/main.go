@@ -3,6 +3,7 @@ package main
 import (
 	"TODO_List/internal/config"
 	http_server "TODO_List/internal/http-server"
+	"TODO_List/internal/middleware"
 	storage "TODO_List/internal/storage/postgresql"
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
@@ -11,7 +12,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.LoadConfig("./config/local.yaml")
+	cfg, err := config.LoadConfig("./config/prod.yaml")
 	if err != nil {
 		log.Fatal("Failed to load config:", err)
 	}
@@ -25,27 +26,34 @@ func main() {
 
 	e := echo.New()
 
-	//tasks
-	e.GET("/todos", server.GetTodos)
+	r := e.Group("/", middleware.JWTMiddleware)
+	{
+		r.GET("/todos", server.GetTodos)
 
-	e.POST("/todos", server.CreateTodo)
+		r.POST("/todoss", server.CreateTodo)
 
-	e.PUT("/todos/:id", server.UpdateTodo)
+		r.PUT("/todos/:id", server.UpdateTodo)
 
-	e.DELETE("/todos/:id", server.DeleteTodo)
+		r.DELETE("/todos/:id", server.DeleteTodo)
 
-	e.DELETE("/todos", server.DeleteAllTodos)
+		r.DELETE("/todos", server.DeleteAllTodos)
 
-	//categories
-	e.GET("/categories", server.GetAllCategories)
+		r.GET("/categories", server.GetAllCategories)
 
-	e.GET("/categories/:id", server.GetCategoryById)
+		r.GET("/categories/:id/todos", server.GetCategoryTodos)
 
-	e.POST("/categories", server.CreateCategory)
+		r.POST("/categories", server.CreateCategory)
 
-	e.PUT("/categories/:id", server.UpdateCategory)
+		r.PUT("/categories/:id", server.UpdateCategory)
 
-	e.DELETE("/categories/:id", server.DeleteCategory)
+		r.DELETE("/categories/:id", server.DeleteCategory)
+
+	}
+
+	//authentication and authorization
+	e.POST("/register", server.Register)
+
+	e.POST("/login", server.Login)
 
 	connServer := &http.Server{
 		Addr:         cfg.HTTPServer.Address,

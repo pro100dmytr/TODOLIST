@@ -42,9 +42,9 @@ func New(cfg *config.Config) (*Storage, error) {
 }
 
 func (s *Storage) CreateTodoItem(todo model.Todo) (int, error) {
-	const query = "INSERT INTO tasks (title, completed, category_id) VALUES ($1, $2, $3) RETURNING task_id"
+	const query = "INSERT INTO tasks (title, completed, category_id, user_id) VALUES ($1, $2, $3, $4) RETURNING task_id"
 	var id int
-	err := s.db.QueryRow(query, todo.Title, todo.Completed, todo.CategoryID).Scan(&id)
+	err := s.db.QueryRow(query, todo.Title, todo.Completed, todo.CategoryID, todo.UserID).Scan(&id)
 	return id, err
 }
 
@@ -68,13 +68,16 @@ func (s *Storage) GetAllItems() ([]model.Todo, error) {
 
 	defer rows.Close()
 
-	tasks, err := scanToDo(rows, func(rows *sql.Rows, task *model.Todo) error {
-		return rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID)
-	})
-	if err != nil {
-		return nil, err
-	}
+	tasks := make([]model.Todo, 0)
 
+	for rows.Next() {
+		var task model.Todo
+
+		if err = rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
@@ -149,53 +152,93 @@ func (s *Storage) GetAllCategories() ([]model.Category, error) {
 	}
 	defer rows.Close()
 
-	categories, err := scanToDo(rows, func(rows *sql.Rows, category *model.Category) error {
-		return rows.Scan(&category.ID, &category.Category)
-	})
-	if err != nil {
+	var categories []model.Category
+	for rows.Next() {
+		var c model.Category
+		if err = rows.Scan(&c.ID, &c.Category); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
 	return categories, nil
 }
 
-func (s *Storage) GetCategoryByID(id int) (model.Category, error) {
-	var category model.Category
+func (s *Storage) GetCategoryTodos(categoryID, offset, limit int, search string) ([]model.Todo, error) {
+	query := `
+    SELECT task_id, title, completed, category_id
+    FROM tasks
+    WHERE category_id = $1
+`
+	args := []interface{}{categoryID}
 
-	err := s.db.QueryRow("SELECT id, category FROM categories WHERE id = $1", id).
-		Scan(&category.ID, &category.Category)
-	if err != nil {
-		return category, err
+	if search != "" {
+		query += " AND title LIKE $2"
+		args = append(args, "%"+search+"%")
 	}
 
-	rows, err := s.db.Query("SELECT task_id, title, completed, category_id FROM tasks WHERE category_id = $1", id)
+	query += `
+    ORDER BY task_id
+    LIMIT $%d
+    OFFSET $%d 
+`
+
+	args = append(args, limit, offset)
+
+	query = fmt.Sprintf(query, len(args)-1, len(args))
+
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
-		return category, err
+		return nil, err
 	}
 	defer rows.Close()
 
-	tasks, err := scanToDo(rows, func(rows *sql.Rows, task *model.Todo) error {
-		return rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID)
-	})
-	if err != nil {
-		return category, err
-	}
+	var tasks []model.Todo
 
-	category.Tasks = tasks
-	return category, nil
-}
-
-func scanToDo[T any](rows *sql.Rows, scanFunc func(*sql.Rows, *T) error) ([]T, error) {
-	items := make([]T, 0)
 	for rows.Next() {
-		var item T
-		if err := scanFunc(rows, &item); err != nil {
+		var task model.Todo
+		err = rows.Scan(&task.ID, &task.Title, &task.Completed, &task.CategoryID)
+		if err != nil {
 			return nil, err
 		}
-		items = append(items, item)
+		tasks = append(tasks, task)
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-	return items, nil
+
+	return tasks, nil
+}
+
+func (s *Storage) CreateUser(user model.User) (int, error) {
+	var id int
+	const query = "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING user_id"
+	err := s.db.QueryRow(query, user.Email, user.Password).Scan(&id)
+	return id, err
+}
+
+func (s *Storage) GetUserByID(id int) (model.User, error) {
+	var user model.User
+	err := s.db.QueryRow(`
+    SELECT user_id, email, password 
+    FROM users WHERE user_id = $1
+    `, id).Scan(&user.ID, &user.Email, &user.Password)
+
+	if err == sql.ErrNoRows {
+		return user, err
+	}
+
+	return user, nil
+}
+
+func (s *Storage) GetUserIDByEmail(email string) (int, error) {
+	var id int
+	err := s.db.QueryRow("SELECT user_id FROM users WHERE email = $1", email).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, err
+	}
+	return id, err
 }
