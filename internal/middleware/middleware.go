@@ -3,6 +3,7 @@ package middleware
 import (
 	"TODO_List/internal/model"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -27,6 +28,7 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		})
 
 		if err != nil {
+			slog.Error("Invalid token", err)
 			return c.JSON(http.StatusUnauthorized, model.ErrorResponse{Error: "Invalid token"})
 		}
 
