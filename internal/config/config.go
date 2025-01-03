@@ -2,7 +2,7 @@ package config
 
 import (
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"os"
 	"time"
 )
 
@@ -10,7 +10,7 @@ type Config struct {
 	Env         string `yaml:"env"`
 	StoragePath string `yaml:"storage_path"`
 	HTTPServer  struct {
-		Address     string        `yaml:"address" env-default:"localhost:1010"`
+		Address     string        `yaml:"address" env-default:"localhost:8080"`
 		Timeout     time.Duration `yaml:"timeout" env-default:"4s"`
 		IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
 		User        string        `yaml:"user" env-required:"true"`
@@ -27,14 +27,13 @@ type Config struct {
 }
 
 func LoadConfig(configPath string) (*Config, error) {
-	data, err := ioutil.ReadFile(configPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
 
 	var cfg Config
-	err = yaml.Unmarshal(data, &cfg)
-	if err != nil {
+	if err = yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 
